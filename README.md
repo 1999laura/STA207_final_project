@@ -8,3 +8,12 @@ In the study conducted by Steinmetz et al. (2019), experiments were performed on
 
 In this project, we focus specifically on the spike trains of neurons in the visual cortex, from the onset of the stimuli to 0.4 seconds post-onset. In addition, we only use five sessions (Sessions 1 to 5) from two mice (Cori and Frossman).
 
+## Questions of Interest
+
+The primary objectives of this project is to understand how the neural activity in the visual cortex is modulated by the two stimuli and how this information can be utilized to predict the outcome of the trial. To be specific, two questions of interest are as follows. 
+1. How do neurons in the visual cortex respond to the stimuli presented on the left and right? (35 pts)
+2. How to predict the outcome of each trial using the neural activities and stimuli? (5 pts)
+
+For Question 1, various methodologies can be employed to formulate statistically sound hypotheses that align with the research objective. In particular, we would like to know if the left and right stimuli have additive effects on the neural responses (i.e., whether the interaction effect exists). A suggested model and hypothesis can be found in the provided outline below. However, **alternative models or hypotheses may also be proposed**, but it is necessary to consult with the teaching assistants and obtain written approval from the instructor no later than March 6th.
+
+For Question 2, a variety of models may be employed for building the predictive model and the only criteria is to have the best prediction performance. Here the prediction performance is evaluated by the sensitivity and specificity evaluated on the first 100 trials in Session 1. Additionally, it may be possible to enhance the prediction performance by thoroughly analyzing the rewarding mechanism described in Steinmetz et al. (2019).
