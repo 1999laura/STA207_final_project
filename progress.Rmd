@@ -1,0 +1,555 @@
+---
+title: "Mixed effect model on the experiment of mouse neurons"
+author: "Chenrui Lu"
+date: "2023-03-10"
+output:
+  word_document: default
+  html_document: default
+options:
+  fig.width: 9
+  fig.height: 6
+---
+
+```{r,echo=FALSE,results='hide',message=FALSE,warning=FALSE}
+library(reactable)
+```
+
+```{r,echo=FALSE,results='hide',message=FALSE,warning=FALSE}
+#import data
+data=list()
+for(i in 1:5){
+  data[[i]]=readRDS(paste('session',i,'.rds',sep=''))
+}
+```
+
+```{r,echo=FALSE,results='hide',message=FALSE,warning=FALSE}
+#table(data[[1]]$feedback_type)
+#table(data[[1]]$contrast_left)
+#table(data[[1]]$contrast_right)
+#length(data[[1]]$time[[11]])
+#dim(data[[1]]$spks[[11]])
+```
+
+```{r,echo=FALSE,results='hide',message=FALSE,warning=FALSE}
+trials=list()
+neurons=list()
+for(i in 1:5){
+trials[i]=length(data[[i]]$spks)
+neurons[i]=dim(data[[i]]$spks[[1]])[1]
+}
+```
+
+```{r,echo=FALSE,results='hide',message=FALSE,warning=FALSE}
+# Obtain the firing rate 
+firingrate1=numeric(trials[[1]])
+for(i in 1:trials[[1]]){
+  firingrate1[i]=sum(data[[1]]$spks[[i]])/neurons[[1]]/0.4
+}
+
+#for(i in 1:trials[[1]]){
+#  firingrate1[i]=max(data[[1]]$spks[[i]])/0.4
+#}
+
+firingrate2=numeric(trials[[2]])
+for(i in 1:trials[[2]]){
+  firingrate2[i]=sum(data[[2]]$spks[[i]])/neurons[[2]]/0.4
+}
+firingrate3=numeric(trials[[3]])
+for(i in 1:trials[[3]]){
+  firingrate3[i]=sum(data[[3]]$spks[[i]])/neurons[[3]]/0.4
+}
+firingrate4=numeric(trials[[4]])
+for(i in 1:trials[[4]]){
+  firingrate4[i]=sum(data[[4]]$spks[[i]])/neurons[[4]]/0.4
+}
+firingrate5=numeric(trials[[5]])
+for(i in 1:trials[[5]]){
+  firingrate5[i]=sum(data[[5]]$spks[[i]])/neurons[[5]]/0.4
+}
+```
+
+```{r,echo=FALSE,results='hide',message=FALSE,warning=FALSE}
+#create df contains left contrast and right contrast and feedback
+df=data.frame()
+for(i in 1:5){
+rows=lapply(data[[i]],unlist)
+rows=rows[1:3]
+mat=matrix(unlist(rows),ncol=3)
+df1=data.frame(mat)
+df=rbind(df,df1)
+}
+#create mouse and session
+mouse=c(rep('Cori',trials[[1]]),rep('Cori',trials[[2]]),rep('Cori',trials[[3]]),rep('Forssmann',trials[[4]]),rep('Forssmann',trials[[5]]))
+session=c(rep(1,trials[[1]]),rep(2,trials[[2]]),rep(3,trials[[3]]),rep(4,trials[[4]]),rep(5,trials[[5]]))
+mouse_name=factor(mouse,levels=c("Cori","Forssmann"))
+session=factor(session,levels=c(1,2,3,4,5))
+df$mouse=mouse_name
+df$session=session
+```
+
+```{r,echo=FALSE,results='hide',message=FALSE,warning=FALSE}
+#create firingrate column
+firingrate1=matrix(firingrate1,ncol=1)
+firingrate2=matrix(firingrate2,ncol=1)
+firingrate3=matrix(firingrate3,ncol=1)
+firingrate4=matrix(firingrate4,ncol=1)
+firingrate5=matrix(firingrate5,ncol=1)
+firingrate=rbind(firingrate1,firingrate2,firingrate3,firingrate4,firingrate5)
+firingrates=as.numeric(firingrate)
+df$firingrate=firingrates
+colnames(df)=c("contrast_left","contrast_right","feedback_type","mouse","session","firing_rate")
+```
+
+```{r,echo=FALSE,results='hide',message=FALSE,warning=FALSE}
+df$contrast_left=as.factor(df$contrast_left)
+df$contrast_right=as.factor(df$contrast_right)
+```
+
+```{r,echo=FALSE,results='hide',message=FALSE,warning=FALSE}
+#xtabs(~contrast_left+contrast_right,data=df)
+```
+
+# Abstract
+
+This project involves the analysis of a subset of data collected from a study conducted by Steinmetz et al.(2019) on the activity of neurons in the visual cortex of mice. The primary objectives of the project are to understand how the neural activity in the visual cortex is modulated by the stimuli presented on the left and right, and how this information can be utilized to predict the outcome of each trial. After pre-processing the data and descriptive statistical analysis, it was found that the level of left and right have influence on the experiment' outcomes and the numbers of spikes of neurons in the visual cortex. Next, using ANOVA test to quantitatively analyze whether the interaction effect exists. After diagnostics and sensitivity analysis, including using max of firing rates instead of the mean of firing rate as outcomes to conduct model, we construct prediction models and choose SVM model as the best performance model.
+
+# Introduction
+
+Those experiments conducted on mice were designed to comprehend the neural mechanisms underlying decision-making. The two main areas of interest were: firstly, examining how the neural activity in the visual cortex is modulated by the stimuli. Secondly, exploring how this information can be employed to anticipate trial outcomes.
+
+To carry out this project, the researchers obtained a dataset containing spike trains of neurons in the visual cortex from two mouse across five sessions. During the trials, the mice were presented with visual stimuli on their left and right, varying in {0, 0.25, 0.5, 1} four contrast levels, and were required to make decisions using their forepaws. Based on their decisions, they were subsequently rewarded or penalized, and this was recorded as 'feedback'. The researchers also recorded the activity of the neurons in the visual cortex as spike trains.
+
+In addition, to investigating how neurons in the visual cortex respond to the stimuli on the left and right, we particularly focus on whether the left and right neurons have interaction effects on decision making. For finding the prediction model, due to the variety of models, we may choose the model with the best performance.
+
+The impact of results of this data analysis insights into how the brain uses a distributed coding system, which allows different neurons to perform specific functions. The findings of this study are also significant for gaining a better understanding of how the brain works in more complex cognitive tasks, and may also offer potential avenues for developing new treatments for brain-related disorders.
+
+# Background
+
+For the original project, the Steinmetz et al.(2019) used Neuropixels probes to record from around 30,000 neurons in 42 brain regions while the mice performed the task. The researchers identified the firing times of individual neurons and their anatomical locations. As a result, the study's findings provide insights into the neural circuits underlying cognitive processes in the mouse brain[1].
+
+Besides, there have been many studies investigating the neural basis of decision-making in animals. For instance, Raposo et al. (2014) investigated the relationship between rats' behaviors and posterior parietal cortex, which is a region of the brain that receives a wide range of inputs and is involved in a vast array of behaviors. And all of their observations suggest that a single network of neurons can support the evolving behavioral demands of decision-making[2]. Similarly, Stringer et al. (2019) conducted a research study that employed extensive electrophysiology techniques to monitor the activity of mouse brain neurons during a basic visual task. The study revealed that sensory information was dispersed throughout various brain regions, and distinct neuron types encoded different components of the task[3].
+
+# Descriptive analysis
+
+```{r,echo=FALSE,results='hide',message=FALSE,warning=FALSE}
+library(tidyverse)
+library(ggplot2)
+library(gridExtra)
+library(dplyr)
+library(tidyr)
+library(knitr)
+library(kableExtra)
+```
+
+From looking through the dataset, we may find that some values are not correct. For example, there is a 2 in the second trials for session2, so we may change the feedback type from -1 to 0 and from other number meaning correct to 1. Then the original data will be transferred to the reactable table below.
+
+```{r,echo=FALSE,results='hide',message=FALSE,warning=FALSE}
+# Change -1 values of feedback to 0, and remaining values to 1
+df$feedback_type <- ifelse(df$feedback_type == -1, 0, 1)
+```
+
+```{r,echo=FALSE,message=FALSE,warning=FALSE}
+reactable(df)
+```
+
+And after these kind of data pre-processing, we can plot a summary statistics table of feedback in each sessions.
+
+```{r,echo=FALSE,results='hide',message=FALSE,warning=FALSE}
+df_feedback_summary <- df %>%
+  group_by(session) %>%
+  summarise(n = n(), 
+            mean = mean(feedback_type), 
+            sd = sd(feedback_type), 
+            max=max(feedback_type),
+            min=min(feedback_type),
+            .groups = "drop") %>%
+  ungroup()
+```
+
+```{r,echo=FALSE,message=FALSE,warning=FALSE}
+kable(df_feedback_summary,align = "c",caption = "Table1:the summary statistics of feedback") %>% 
+  kable_styling(position = "center",
+                latex_options = c("striped", "scale_down", "centering"))
+```
+
+```{r,echo=FALSE,results='hide',message=FALSE,warning=FALSE}
+df$feedback_type=as.factor(df$feedback_type)
+```
+
+```{r,echo=FALSE,message=FALSE,warning=FALSE}
+ggplot(df,aes(x=session,y=feedback_type,fill=feedback_type))+
+  geom_bar(stat="identity")+
+  labs(x="session",y="feedback",caption="Graph1: Bar chart for the number of rewards and penalties in each sessions")
+```
+
+From the summary table and bar chart above, we can see that the accuracy of each sessions and the mean of feedback in each sessions are quite similar. It may conclude that there is less difference between the congnitive of different sessions and mouse. Therefore, to further explore, we draw the heat map of the accuracy of rat's movements under each combination of left and right stimuli.
+
+```{r,echo=FALSE,message=FALSE,warning=FALSE}
+df_acc <- df %>%
+  group_by(contrast_left, contrast_right) %>%
+  summarise(acc_prop = mean(feedback_type == 1),.groups = "drop")
+ggplot(df_acc, aes(contrast_right, contrast_left, fill = acc_prop)) +
+  geom_tile() +
+  scale_fill_gradient(low = "yellow", high = "purple") +
+  labs(x = "Contrast right", y = "Contrast left", fill = "Accuracy",caption = "Graph2: Heat map of accuracy in each combination of left and right stimuli") +
+    theme_bw()
+```
+
+```{r,echo=FALSE,message=FALSE,warning=FALSE}
+df_acc1 <- df %>%
+  group_by(contrast_left, contrast_right,mouse) %>%
+  summarise(acc_prop = mean(feedback_type == 1),.groups = "drop")
+
+ggplot(df_acc1, aes(contrast_right, contrast_left, fill = acc_prop)) +
+  geom_tile() +
+  facet_wrap(~mouse)+
+  scale_fill_gradient(low = "white", high = "blue") +
+  labs(x = "Contrast right", y = "Contrast left", fill = "Accuracy",caption = "Graph3: Heat map of accuracy between mice of Cori and Forssmann") +
+  theme_bw()
+```
+
+From the Graph2, we can find that the color of heat map center is quite close to yellow, which means that when the level of stimuli from left and right close to each other, the accuracy of feedback gets lower and the mouse are hard to recognize the 'truth'. In addition, when we compare the heat map of accuracy between mice Cori and Forssmann from graph 3, we may find that it is Frossmann who perform bad when the level of left and right stimuli close to each other and the color difference between squares in the heat map is larger than that of Cori. Therefore, we might imply that Cori is more sensitive to the stimuli than Forssmann. As a result, the differences between mouse may have effect on the outcomes of experiments.
+
+According to the dataset, we can easily find that each sessions contain varying numbers of neurons. Therefore, we should redefine the outcome variables from the 'spks' to the 'the mean firing rate'. This is because: 1.using mean firing rate can reduce the dimensional of data. 2.using mean firing rate can provide quantitative analysis when outcomes are continuous numeric. 3.using mean firing rate can remove noise and variability from the data. 4.using mean firing rate can reflect overall activity of neuros in each trials. And it can be calculated by the formula below:
+
+<center>
+
+$\frac{average\ number\ of\ spikes}{the\ number\ of\ neuromns\ *\ time}$</center>
+
+```{r,echo=FALSE,results='hide',message=FALSE,warning=FALSE}
+df_firing_summary <- df %>%
+  group_by(session) %>%
+  summarise(n = n(), 
+            mean = mean(firing_rate), 
+            sd = sd(firing_rate), 
+            min = min(firing_rate), 
+            max = max(firing_rate),
+            .groups = "drop") %>%
+  ungroup()
+#df_firing_summary
+```
+
+```{r,echo=FALSE,message=FALSE,warning=FALSE}
+boxplot(firingrate~session,data=df,col=c("#00AFBB", "#E7B800"),ylab="firing rate"
+        ,main="Graph4: Boxplot of firingrate in 5 sessions")
+```
+
+From the boxplot of firing rate in different sessions, it is quite obvious that the group means are not similar between session1,2,3 and session 4,5. On one hand, the difference may cause heterogeneity across sessions, so we have to assume that session may have effect on the firing rates. On the other hand, combining what we find on the Graph3, the low level of mean of session 4 and 5 may because of the insensitivity of Frossmann.
+
+```{r,echo=FALSE,message=FALSE,warning=FALSE}
+ggplot(df, aes(x = firing_rate, fill = factor(session))) +
+  geom_density(alpha = 0.5)+
+  labs(x = "firing rate", y = "density", fill = "session",caption = "Graph5: Plot of the distribution of firing rates between 5 sessions") 
+```
+
+From the Graph5, we can find that for session1, session2, session3, which all experiments are from the same mice 'Cori', the firing rates distribute in quite similar region except the density. And session4 and session5, which all experiments are from the same mice 'Forssmann', intuitively, the firing rates are under those of 'Cori', and with quite different peaks. Therefore, using sessions as random effect for following analysis is of quite significance.
+
+# Inferential analysis
+
+The main aim of this project is to investigate the modulation of neural activity in the visual cortex by two different stimuli and explore how this information can be utilized to make predictions about trial outcomes. And the first question that we are interested in is 'How do neurons in the visual cortext react to the stimuli presented on the left and right sides'. As for the given data, we have total 5 sessions of 2 mice that contain several hundred trials and the activity of the neurons which is presented by the spike trains of neurons in the visual cortex. Therefore, we would like to conduct a mixed effect model where the two fixed-effect factors are left contrast and right contrast, and a random intercept is included for each session.
+
+```{r,echo=FALSE,message=FALSE,warning=FALSE}
+library(gplots)
+par(mfrow=c(1,3))
+plotmeans(firingrate~contrast_left,data=df,xlab="Contrast left",ylab="firing rante", main="Graph6: Main effect, Contrast left") 
+plotmeans(firingrate~contrast_right,data=df,xlab="Contrast right",ylab="firing rate", main="Graph7: Main effect, Contrast right") 
+cl=df$contrast_left
+cr=df$contrast_right
+fr=df$firing_rate
+interaction.plot(cl,cr,fr,xlab="Contrast left",ylab="Contrast right", main="Graph8: Interaction")
+
+```
+
+From the Graph 6 and 7 above, we can see that the overall effect of left stimuli and the effect of contrast right's stimuli on the 'mean firing rate' variable, regardless of the other variables in the model. And the Graph8 above allows us to see how the relationship between left stimuli and the 'mean firing rate' changes depending on the value of the right stimuli in the model. Since, the lines cross, it indicates that there is an interaction between the left and right variables, and their effects on the firing rates depend on each other. Therefore, when we construct the mixed effect model, we have to include the interaction term.
+
+And the reason that treating sessions as a random effect in our model is that we focus more on the effect of stimuli on the neurons' responds instead of the effect of each sessions. Therefore, when constructing the ANOVA model, we would like to set sessions as a random effect. Besides, since our experimental units are of two distinct sizes, we would like to use two separate error terms to account for the experimental errors.
+
+```{r,echo=FALSE,results='hide',message=FALSE,warning=FALSE}
+library(lme4)
+```
+
+In this context, the observations of firing rate of the l-th replicate of a mice with a particular level of contrast left i and level of contrast right j on kth session is denoted as $y_{ijkl}$. To do this, we use a specific model. <center>$Y_{ijkl}=\mu_{....}+\alpha_i+\beta_{j}+(\alpha\beta)_{ij}+\gamma_k+\epsilon_{ijkl}, i=1,..,4,j=1,...,4,k=1,...,5,l=1,2$</center>
+
+where $\alpha_i$ is the fixed effect of contrast left, $\beta_j$ is the fixed effect of contrast right, $(\alpha\beta)_{ij}$ is the corresponding interaction term and $\gamma_k$ is the random effect of sessions.
+
+And for the model shows above, we have following contrast:
+
+<center>
+
+-   $\alpha_i\sim N(0,\sigma^2_\alpha)$
+
+-   $\beta_j\sim N(0,\sigma^2_\beta)$
+
+-   $\gamma_k\sim N(0,\sigma^2_\gamma)$
+
+-   $(\alpha\beta)_{ij}\sim N(0,\sigma^2_{\alpha\beta})$
+
+-   $\{\epsilon_{ijkl}\}\sim N(0,\sigma^2)$
+
+-   all random variables are mutually independent.
+
+    </center>
+
+And the assumptions for this model are as follows:
+
+<center>
+
+-   the error terms are homogeneity
+
+-   the error terms are normality
+
+-   the error terms are independence
+
+-   there are no outliers that may impact normality and homogeneity of variance.
+
+    </center>
+
+```{r,echo=FALSE,results='hide',message=FALSE,warning=FALSE}
+full_model=lmer(firing_rate~contrast_left*contrast_right+(1|session),data=df)
+#summary(fit)
+```
+
+```{r,echo=FALSE,results='hide',message=FALSE,warning=FALSE}
+library(emmeans)
+```
+
+After we construct mixed effect model, we may assume that some combinations of left and right stimuli may have high mean firing rate, so we can use Tukey's method to find whether there is such a "best combination" represents the cell with the highest cell mean compared to other cells. Unfortunately, from the plot above, we find that there is no significant difference between each left and right stimuli combinations.
+
+```{r,echo=FALSE,message=FALSE,warning=FALSE}
+plot(emmeans(full_model,"contrast_left","contrast_right"),xlab="confidence level of mean firing rate",main="Graph9: differences in mean levels of mean firing rate",)
+```
+
+An another interesting question is that we would like to know if the left and right stimuli have additive effects on the neural responses. To figure it out, we can use F-test or anova to show whether the interaction term is significance.We may compare the full model and the reduced model by anova. The full model is
+
+<center>$Y_{ijkl}=\mu_{....}+\alpha_i+\beta_{j}+(\alpha\beta)_{ij}+\gamma_k+\epsilon_{ijkl}$</center>
+
+and the reduced model is
+
+<center> $Y_{ijkl}=\mu_{....}+\alpha_i+\beta_{j}+\gamma_k+\epsilon_{ijkl}$</center>
+
+```{r,echo=FALSE,results='hide',message=FALSE,warning=FALSE}
+reduced_model=lmer(firing_rate~contrast_right+contrast_left+(1|session),data=df)
+#summary(fit1)
+```
+
+And the null and alternative hypothesis for testing the interaction term is as following:
+
+<center>
+$H_0:(\alpha\beta)_ij=0\ v.s.\ H1:not\ all\ (\alpha\beta)_{ij}\ are\ zero.$ </center>
+
+The F-statistics is then <center>$F^*=\frac{[SSE_{red}-SSE_{full}]/[df_{red}-df_{full}]}{SSE_{full}/df_{full}}$}</center>
+where $F^*\sim F((a-1)(b-1),n_T-ab)$ under the null hypothesis.
+
+```{r,echo=FALSE,message=FALSE,warning=FALSE}
+anovafit1=anova(full_model,reduced_model)
+kable(anovafit1,align = "c",caption = "Table2:the anova test for full and reduced model") %>% 
+  kable_styling(position = "center",
+                latex_options = c("striped", "scale_down", "centering"))
+```
+
+From the anova testing, the p-value is 0.04112 which is smaller than $\alpha=0.05$, which means that we can reject the null hypothesis that the left and right stimuli do have interaction effects on the neural responses.
+
+# Diagnostics
+
+From the model, we can see that the expectation of random effects can be absorbed in the overall mean. Hence, when random effects do not exist, it means the variance $\sigma^2_\mu$ is zero. Therefore, to diagnose whether one need to account for the random effects from sessions, we have the following hypothesis:
+
+<center>$H_0:\sigma^2_\mu=0\ v.s.\ H_1:\sigma^2_\mu\not=0$</center>
+
+The test statistic remains the same as $F^*=MSTR/MSE$, which follows an F-distribution with d.f. $(r-1,(n-1)r)$ under the null.
+
+```{r,echo=FALSE,results='hide',message=FALSE,warning=FALSE}
+reduced_model2=aov(firing_rate~contrast_left*contrast_right,data=df)
+#summary(fit2)
+```
+
+```{r,echo=FALSE,message=FALSE,warning=FALSE}
+anova2=anova(full_model,reduced_model2)
+kable(anova2,align = "c",caption = "Table3:the anova test for full and reduced model2") %>% 
+  kable_styling(position = "center",
+                latex_options = c("striped", "scale_down", "centering"))
+```
+
+From the table above, which shows the anova test between the model with and without the random effects of sessions, when $\alpha=0.05$, we can find that the model with random effect is of great significance, and the AIC and BIC of model without random effect are much higher than those of full model,so we need to account for the random effects from sessions.
+
+To test error terms are homogeneity, we can plot the residual plot. From Graph10 below, we may find that there is only 1 outlier, so maybe dropping it is the best way to not affect the whole model. Moreover, the result of tyhe plot quite fit the model assumptions.
+
+```{r,echo=FALSE,message=FALSE,warning=FALSE}
+plot(full_model,xlab="fitted value",ylab="residuals",main="Graph10: residual v.s. fitted value")
+```
+
+```{r,echo=FALSE,message=FALSE,warning=FALSE}
+qqnorm(resid(full_model), main = "Graph11: Normal QQ plot")
+```
+
+From the qq-plot above, we can find that the residuals mostly fit in a line, which means that residuals quite obey normal distribution and the assumption for the model is correct.
+
+# Sensitivity analysis
+
+```{r,echo=FALSE,results='hide',message=FALSE,warning=FALSE}
+ # Obtain the firing rate 
+newfiringrate1=numeric(trials[[1]])
+for(i in 1:trials[[1]]){
+  newfiringrate1[i]=max(data[[1]]$spks[[i]])/0.4
+}
+newfiringrate2=numeric(trials[[2]])
+for(i in 1:trials[[2]]){
+  newfiringrate2[i]=max(data[[2]]$spks[[i]])/0.4
+}
+newfiringrate3=numeric(trials[[3]])
+for(i in 1:trials[[3]]){
+  newfiringrate3[i]=max(data[[3]]$spks[[i]])/0.4
+}
+newfiringrate4=numeric(trials[[4]])
+for(i in 1:trials[[4]]){
+  newfiringrate4[i]=max(data[[4]]$spks[[i]])/0.4
+}
+newfiringrate5=numeric(trials[[5]])
+for(i in 1:trials[[5]]){
+  newfiringrate5[i]=max(data[[5]]$spks[[i]])/0.4
+}
+```
+
+```{r,echo=FALSE,results='hide',message=FALSE,warning=FALSE}
+#create firingrate column
+newfiringrate1=matrix(newfiringrate1,ncol=1)
+newfiringrate2=matrix(newfiringrate2,ncol=1)
+newfiringrate3=matrix(newfiringrate3,ncol=1)
+newfiringrate4=matrix(newfiringrate4,ncol=1)
+newfiringrate5=matrix(newfiringrate5,ncol=1)
+newfiringrate=rbind(newfiringrate1,newfiringrate2,newfiringrate3,newfiringrate4,newfiringrate5)
+newfiringrates=as.numeric(newfiringrate)
+df$newfiringrate=newfiringrates
+```
+
+```{r,echo=FALSE,message=FALSE,warning=FALSE}
+new_full_model=lmer(newfiringrate~contrast_left*contrast_right+(1|session),data=df)
+anova3=anova(full_model,new_full_model)
+kable(anova3,align = "c",caption = "Table4:the anova test for full model with different outcomes") %>% 
+  kable_styling(position = "center",
+                latex_options = c("striped", "scale_down", "centering"))
+```
+
+For sensitivity analysis, we can explore using maximum of firing rate as outcomes to prove the original full model's validation. After we change the outcomes from the mean firing rates to the maximum of firing rates, we conduct a new model, and compared this two model by anova. The Table4 above illustrates the AIC, BIC and deviance of full model(original model) and new full model(new model). Obviously, the AIC and BIC of new full model(new model) is larger than full model(original model), which means that 'new full model' is a worse model. And from the Graph 12 below, the reason is quite clear. Since the residuals parallel to each other on the residual plot, it do not follow the expected distribution and disrupt the underlying assumptions of the mixed effect model. As a result, the new full model is a worse model. Therefore, choosing the mean firing rate is quite a good choice to construct a mixed effect model.
+
+```{r,echo=FALSE ,message=FALSE,warning=FALSE}
+plot(new_full_model,xlab="fitted value",ylab="residuals",main="Graph12:residuals v.s. fitted values of new full model")
+```
+
+# Predictive modeling
+
+From the dataset, we can use "contrast left", "contrast right", "mouse" and"feedback" to construct a predictive model. Because feedback is a binary outcomes, we can use logistic regression to model an intuitively binary classfication predictive model.
+
+```{r,echo=FALSE,results='hide',message=FALSE,warning=FALSE}
+library(MASS)
+library(pROC)
+```
+
+```{r,echo=FALSE,results='hide',message=FALSE,warning=FALSE}
+train_dt=df[101:1196,]
+test_dt=df[1:100,]
+
+prediction=glm(train_dt$feedback_type~contrast_left*contrast_right+mouse,data=train_dt,family="binomial")
+#summary(prediction)
+
+```
+
+```{r,echo=FALSE,results='hide',message=FALSE,warning=FALSE}
+threshold=0.5
+predicted_values=ifelse(predict(prediction,test_dt)>threshold,1,0)
+actual_values = test_dt$feedback_type
+```
+
+```{r,echo=FALSE,message=FALSE,warning=FALSE}
+#model diagnostics
+#pearson residuals and deviance  residuals
+res.p=residuals(prediction,type="pearson")
+res.d=residuals(prediction,type="deviance")
+boxplot(cbind(res.p,res.d),names=c("Pearson","Deviance"),main="Graph13: pearson residuals and deviance residuals")
+```
+
+As for the diagnostics of the prediction model, first we calculate the pearson residuals and deviance residuals to determine whether model suffer from potential lack-of-fit. As a result, the boxplots above show similar distributions of the two types of residuals, so the model do not suffer from potential lack-of-fit.
+
+Back to what we interested in, we would like to figure out which prediction model have the best prediction performance. Here the prediction performance is evaluated by the sensitivity and specificity evaluated on the first 100 trials in Session 1. In addition, we use default threshold(0.5).
+
+```{r,echo=FALSE,message=FALSE,warning=FALSE}
+conf_matrix = table(predicted_values, actual_values)
+kable(conf_matrix,align = "c",caption = "Table5:the confusion matrix of logitics regression") %>% 
+  kable_styling(position = "center",
+                latex_options = c("striped", "scale_down", "centering"))
+prediction.roc=roc(prediction$y,prediction$fitted.values)
+#prediction.roc$auc
+plot(prediction.roc,main="ROC curve of logistics regression")
+```
+
+Therefore, based on the Table5 confusion matrix, we have
+<center>$Sensitivity=11/26\approx42.31\%,Specificity=44/74\approx59.46\%$}</center>
+
+And the ROC curve shows above, under which area is 0.6482.
+
+```{r,echo=FALSE,results='hide',message=FALSE,warning=FALSE}
+train_dt$contrast_left <- as.numeric(train_dt$contrast_left)
+train_dt$contrast_right <- as.numeric(train_dt$contrast_right)
+test_dt$contrast_left <- as.numeric(test_dt$contrast_left)
+test_dt$contrast_right <- as.numeric(test_dt$contrast_right)
+```
+
+```{r,echo=FALSE,results='hide',message=FALSE,warning=FALSE}
+library(randomForest)
+```
+
+```{r,echo=FALSE,message=FALSE,warning=FALSE}
+#threshold1=0.5
+prediction1=randomForest(feedback_type~contrast_right+contrast_left,data=train_dt)
+predicted_values1=predict(prediction1,test_dt)
+#predicted_values1=ifelse(predicted_values1>threshold1,1,0)
+conf_matrix1 = table(predicted_values1, actual_values)
+kable(conf_matrix1,align = "c",caption = "Table6:the confusion matrix of random Forest") %>% 
+  kable_styling(position = "center",
+                latex_options = c("striped", "scale_down", "centering"))
+#prediction.roc1=roc(test_dt$feedback_type,as.numeric(predicted_values1))
+#prediction.roc1$auc
+#plot(prediction.roc1)
+```
+
+To find better performance prediction model and also because of the binary characteristic of the 'feedback', we can use the tree-based method as an approach for building predictive models. Firstly, we can use random forest to construct a prediction model. After modeling, we can calculate sensitivity and specificity based on the Table6 confusion matrix of random forest
+
+<center>$Sensitivity=2/26\approx7.69\%,Specificity=68/74\approx91.89\%$</center>
+
+And the accuracy for random forest model is 70%.
+
+```{r,echo=FALSE,message=FALSE,warning=FALSE}
+library(e1071)
+prediction2=svm(feedback_type~contrast_right*contrast_left,data=train_dt)
+predicted_values2=predict(prediction2,test_dt)
+#predicted_values2=ifelse(predicted_values2>threshold1,1,0)
+conf_matrix2 = table(predicted_values2, actual_values)
+kable(conf_matrix2,align = "c",caption = "Table7:the confusion matrix of SVM model") %>%
+  kable_styling(position = "center",
+                latex_options = c("striped", "scale_down", "centering"))
+#prediction.roc2=roc(test_dt$feedback_type,as.numeric(predicted_values2[,2]))
+#prediction.roc2$auc
+#plot(prediction.roc2)
+#auc <- auc(prediction.roc2)
+# Plot the ROC curve and AUC
+#plot(prediction.roc2, main = paste("ROC Curve (AUC = ", round(auc, 2), ")"))
+
+```
+
+Compared to random forest algorithms, the Support Vector Machine(SVM) algorithms can handle outliers and imbalanced data, which is also a powerful machine learning algorithms for classification tasks. After modeling,we can calculate sensitivity and specificity based on the Table7 confusion matrix of SVM model: <center>$Sensitivity=2/26\approx7.69\%,Specificity=70/74\approx94.59\%$</center>
+And the accuracy for random forest model is 72%.
+
+In conclusion, from comparison of three model above, the SVM classification model has the best specificity and accuracy, and the logistic model has the best sensitivity. From my perspective, the SVM classification model has the best performance.
+
+# Discussion
+
+For the project, we aim to understand how the neural activity in the visual cortex is modulated by the stimuli presented on the left and right, and how this information can be utilized to predict the outcome of each trial. After using mean firing rates to pre-processing data, constructing mixed effect model and diagnosing, we can conclude that the interaction effect and the random effect of sessions exist. Furthermore, we construct 3 prediction models, including logistic regression model, random forest model and SVM model. Finally, SVM model has the best performance model and is the final prediction model.
+
+On on hand, there are still some problems that need to be discussed. Firstly, according to the relative documents, there may be some parts of neurons that control specific movement or function of mouse. As a result, instead of using session as a variable, we can use the relationship between the stimuli level of left and right and mean firing rate to cluster the data by neurons.After that, the clustering data can construct various models for prediction. Secondly, maybe there are some more effective outcome statistics than the mean firing rate, which may show more potential information. Finally, for three prediction models, we now choose SVM model based on the best performance, but the sensitivity for SVM model is quite low. Therefore, we may still need to find a better prediction model which can balance the sensitivity and specificity or we can apply the model to more data and compare the sensitivity and specificity.
+
+On the other hand, the findings from this data analysis provide valuable insights into how the neurons perform specific functions. These results may have significant implications for advancing our understanding of the brain's function during more complex cognitive tasks, as well as for developing potential new treatments for brain-related disorders.
+
+# Reference
+
+[1]Steinmetz, N.A., Zatka-Haas, P., Carandini, M. et al. Distributed coding of choice, action and engagement across the mouse brain. Nature 576, 266--273 (2019). <https://doi.org/10.1038/s41586-019-1787-x> 
+[2]Raposo, D., Kaufman, M. & Churchland, A. A category-free neural population supports evolving demands during decision-making. Nat Neurosci 17, 1784--1792 (2014). <https://doi.org/10.1038/nn.3865> 
+[3]Stringer, C., Pachitariu, M., Steinmetz, N. et al. High-dimensional geometry of population responses in visual cortex. Nature 571, 361--365 (2019). <https://doi.org/10.1038/s41586-019-1346-5> [4]All the lectures note and discussion note from STA207
